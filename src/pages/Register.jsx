@@ -1,41 +1,36 @@
 import { useState } from "react";
-import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 import { useNavigate, Link } from "react-router-dom";
 import { toast, Toaster } from "react-hot-toast";
 
-export default function Login() {
-  const { login, loginWithGoogle } = useAuth();
+export default function Register() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [accessMode, setAccessMode] = useState("user");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
 
     try {
-      await login(email, password);
+      setLoading(true);
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("email", email)
-        .single();
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
       if (error) throw error;
 
-      if (accessMode === "admin" && data.role !== "admin") {
-        toast.error("Você não tem permissão de administrador");
-        return;
-      }
-
-      toast.success("Login realizado!");
-      navigate("/");
+      toast.success("Conta criada com sucesso!");
+      navigate("/login");
     } catch (err) {
       console.error(err);
-      toast.error("Erro ao entrar");
+      toast.error("Erro ao criar conta");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -46,11 +41,11 @@ export default function Login() {
       <div className="w-full max-w-lg bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-lg">
         {/* HEADER */}
         <h1 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-1">
-          Entrar no sistema
+          Criar conta
         </h1>
 
         <p className="text-sm text-center text-gray-400 mb-6">
-          Acesse sua conta corporativa
+          Registre seu acesso ao sistema
         </p>
 
         {/* MODO */}
@@ -82,14 +77,12 @@ export default function Login() {
           </button>
         </div>
 
-        {accessMode === "admin" && (
-          <p className="text-xs text-center text-gray-400 mb-4">
-            Apenas contas autorizadas podem acessar como administrador.
-          </p>
-        )}
+        <p className="text-xs text-center text-gray-400 mb-4">
+          O tipo de acesso será definido pela empresa.
+        </p>
 
         {/* FORM */}
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleRegister} className="space-y-4">
           <input
             type="email"
             placeholder="Email"
@@ -110,40 +103,23 @@ export default function Login() {
 
           <button
             type="submit"
+            disabled={loading}
             className="w-full py-3 rounded-xl text-white font-medium text-sm"
             style={{ background: "var(--accent)" }}
           >
-            Entrar
+            {loading ? "Criando..." : "Criar conta"}
           </button>
         </form>
 
-        {/* DIVISOR */}
-        <div className="my-5 text-center text-xs text-gray-400">ou</div>
-
-        {/* GOOGLE */}
-        <button
-          onClick={loginWithGoogle}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-        >
-          <img
-            src="https://www.svgrepo.com/show/475656/google-color.svg"
-            alt="Google"
-            className="w-5 h-5"
-          />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Entrar com Google
-          </span>
-        </button>
-
-        {/* REGISTER */}
+        {/* FOOTER */}
         <p className="text-sm text-center text-gray-400 mt-6">
-          Não tem conta?{" "}
+          Já tem conta?{" "}
           <Link
-            to="/register"
+            to="/login"
             className="hover:underline"
             style={{ color: "var(--accent)" }}
           >
-            Criar conta
+            Entrar
           </Link>
         </p>
       </div>

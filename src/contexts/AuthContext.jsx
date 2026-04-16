@@ -1,67 +1,189 @@
 import { createContext, useState, useEffect, useContext } from "react";
 import { supabase } from "../lib/supabase";
 
-export const AuthContext = createContext();
+const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
-  const [avatar, setAvatar] = useState("👨‍💻");
+  const [profile, setProfile] = useState(null);
+  const [avatar, setAvatar] = useState("🙂");
   const [loading, setLoading] = useState(true);
 
+  // 🔥 INIT (NUNCA TRAVA)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      const u = session?.user ?? null;
-      setUser(u);
+    let mounted = true;
 
-      const savedAvatar = localStorage.getItem("avatar");
-      if (savedAvatar) setAvatar(savedAvatar);
+    const init = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
 
-      setLoading(false);
-    });
+        if (!mounted) return;
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+        const session = data.session;
 
-    return () => subscription.unsubscribe();
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        // 🔥 NÃO BLOQUEIA
+        if (session?.user) {
+          loadProfile(session.user.id);
+        } else {
+          setProfile(null);
+        }
+      } catch (err) {
+        console.error("Erro init:", err);
+      } finally {
+        if (mounted) setLoading(false); // 🔥 SEMPRE FINALIZA
+      }
+    };
+
+    init();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          loadProfile(session.user.id);
+        } else {
+          setProfile(null);
+        }
+
+        setLoading(false); // 🔥 GARANTE
+      },
+    );
+
+    return () => {
+      mounted = false;
+      listener?.subscription?.unsubscribe();
+    };
   }, []);
 
+  // 🔥 PROFILE SEGURO (NUNCA QUEBRA)
+  const loadProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      // 🔥 fallback se não existir
+      if (!data) {
+        setProfile({ role: "user", avatar: "🙂" });
+        setAvatar("🙂");
+        return;
+      }
+
+      setProfile(data);
+      setAvatar(data.avatar || "🙂");
+    } catch (err) {
+      console.error("Erro profile:", err);
+
+      // 🔥 fallback total
+      setProfile({ role: "user" });
+      setAvatar("🙂");
+    }
+  };
+
+  // 🔐 LOGIN
   const login = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+
     if (error) throw error;
-    return data;
   };
 
+  // 🌐 GOOGLE
+  const loginWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) throw error;
+  };
+
+  // 🚪 LOGOUT
   const logout = async () => {
     await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
   };
 
-  const changeAvatar = (icon) => {
-    setAvatar(icon);
-    localStorage.setItem("avatar", icon);
+  // 🎨 AVATAR
+  const changeAvatar = async (emoji) => {
+    try {
+      setAvatar(emoji);
+
+      if (!user) return;
+
+      await supabase
+        .from("profiles")
+        .update({ avatar: emoji })
+        .eq("id", user.id);
+    } catch (err) {
+      console.error("Erro avatar:", err);
+    }
+  };
+
+  // 🔥 PEDIR ADMIN
+  const requestAdmin = async () => {
+    try {
+      if (!user) return false;
+
+      const { error } = await supabase.from("admin_requests").insert([
+        {
+          user_id: user.id,
+          status: "pending",
+        },
+      ]);
+
+      if (error) throw error;
+
+      return true;
+    } catch (err) {
+      console.error("Erro request:", err);
+      return false;
+    }
+  };
+
+  // 🔄 REFRESH PROFILE
+  const refreshProfile = async () => {
+    if (!user) return;
+    loadProfile(user.id);
   };
 
   return (
     <AuthContext.Provider
-      value={{ session, user, loading, login, logout, avatar, changeAvatar }}
+      value={{
+        session,
+        user,
+        profile,
+        avatar,
+        loading,
+        login,
+        loginWithGoogle,
+        logout,
+        changeAvatar,
+        requestAdmin,
+        refreshProfile,
+      }}
     >
       {children}
     </AuthContext.Provider>
   );
 }
 
+// 🔥 HOOK
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context)
-    throw new Error("useAuth deve ser usado dentro de um AuthProvider");
-  return context;
+  return useContext(AuthContext);
 }

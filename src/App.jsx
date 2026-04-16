@@ -6,44 +6,41 @@ import {
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import Sidebar from "./components/Sidebar";
 
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import ResetPassword from "./pages/ResetPassword";
-
+import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
-import TaskDetail from "./pages/TaskDetail";
 import History from "./pages/History";
 import Profile from "./pages/Profile";
+import AdminPanel from "./pages/AdminPanel";
 
-function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-gray-400">Carregando...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) return <Navigate to="/login" replace />;
-
-  return children;
+// 🎨 O LAYOUT QUE MATA A DUPLICAÇÃO
+function AppLayout({ children }) {
+  return (
+    <div className="flex h-screen bg-white dark:bg-[#0a0a0c] overflow-hidden">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto p-4 md:p-8 transition-all">
+        <div className="max-w-7xl mx-auto uppercase-none">{children}</div>
+      </main>
+    </div>
+  );
 }
 
-function PublicRoute({ children }) {
-  const { user, loading } = useAuth();
+function ProtectedRoute({ children, adminOnly = false }) {
+  const { user, profile, loading } = useAuth();
+  if (loading)
+    return (
+      <div className="h-screen flex items-center justify-center dark:bg-gray-950 text-gray-400">
+        Carregando...
+      </div>
+    );
+  if (!user) return <Navigate to="/login" replace />;
+  if (adminOnly && profile?.role !== "admin")
+    return <Navigate to="/" replace />;
 
-  if (loading) return null;
-
-  if (user) return <Navigate to="/" replace />;
-
-  return children;
+  return <AppLayout>{children}</AppLayout>;
 }
 
 export default function App() {
@@ -52,33 +49,9 @@ export default function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            {/* ROTAS PÚBLICAS */}
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/signup"
-              element={
-                <PublicRoute>
-                  <Signup />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/reset"
-              element={
-                <PublicRoute>
-                  <ResetPassword />
-                </PublicRoute>
-              }
-            />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-            {/* ROTAS PROTEGIDAS */}
             <Route
               path="/"
               element={
@@ -92,14 +65,6 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Tasks />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/tasks/:id"
-              element={
-                <ProtectedRoute>
-                  <TaskDetail />
                 </ProtectedRoute>
               }
             />
@@ -119,8 +84,15 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminPanel />
+                </ProtectedRoute>
+              }
+            />
 
-            {/* FALLBACK */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Router>

@@ -44,6 +44,7 @@ export default function AdminPanel() {
     fetchRequests();
   };
 
+  // Se não for admin, mostra apenas a mensagem centralizada
   if (profile?.role !== "admin") {
     return (
       <div className="h-full flex items-center justify-center text-gray-400 font-bold text-xl">
@@ -52,6 +53,7 @@ export default function AdminPanel() {
     );
   }
 
+  // 👇 Retorno limpo, indo direto para o conteúdo da página!
   return (
     <div className="space-y-6">
       <Toaster />
